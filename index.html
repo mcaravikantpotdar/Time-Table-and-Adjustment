@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Academic Architect v7.70 Phase 10.1 (Patched)</title>
+    <title>Academic Architect v7.70 Phase 11 (Master Matrix)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
@@ -115,6 +115,17 @@
             .recess-col { writing-mode: vertical-rl; text-orientation: mixed; font-weight: 900; background: #f8fafc !important; letter-spacing: 4px; font-size: 16px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             .page-break { page-break-after: always; }
             .page-break:last-child { page-break-after: auto; }
+
+            /* Phase 11: Master Matrix Print Core */
+            .matrix-print-container { display: flex; flex-direction: column; width: 100%; height: 96vh; border: 2px solid #000; box-sizing: border-box; font-family: 'Inter Tight', sans-serif; page-break-inside: avoid; }
+            .matrix-row { display: flex; flex: 1; min-height: 0; border-bottom: 1px solid #000; box-sizing: border-box; }
+            .matrix-row:last-child { border-bottom: none; }
+            .matrix-label { width: 70px; flex-shrink: 0; border-right: 2px solid #000; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 12px; background: #f8fafc !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; text-align: center; padding: 2px; }
+            .matrix-timeline { flex: 1; position: relative; }
+            .matrix-block { position: absolute; top: 0; bottom: 0; border-left: 1px solid #000; margin-left: -1px; box-sizing: border-box; display: flex; }
+            .matrix-block.recess { background: #f1f5f9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; align-items: center; justify-content: center; writing-mode: vertical-rl; text-orientation: mixed; font-weight: 900; font-size: 10px; letter-spacing: 2px; color: #64748b; }
+            .matrix-header-row { background: #e2e8f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-weight: bold; flex: 0 0 35px; }
+            .matrix-header-block { display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; line-height: 1.1; text-align: center; }
         }
     </style>
 </head>
@@ -128,7 +139,7 @@
             <div class="h-10 w-10 bg-black rounded-lg flex items-center justify-center text-white font-black text-xl shadow-lg">LA</div>
             <div>
                 <h1 class="text-xl font-black text-slate-800 uppercase tracking-tighter">Academic Architect</h1>
-                <p class="text-[10px] font-black text-indigo-600 tracking-widest uppercase">Version 7.70 (Phase 10.1) - Secured & Patched</p>
+                <p class="text-[10px] font-black text-indigo-600 tracking-widest uppercase">Version 7.70 (Phase 11) - Master Matrix</p>
             </div>
         </div>
         <div class="flex items-center gap-3">
@@ -228,6 +239,7 @@
             <select id="repType" class="w-full border-2 border-slate-300 p-3 rounded-xl mb-5 font-bold text-sm outline-none focus:border-blue-500" onchange="updateReportTargets()">
                 <option value="class">Class-Wise Timetable</option>
                 <option value="teacher">Teacher-Wise Timetable</option>
+                <option value="matrix">Master Matrix (Proportional)</option>
             </select>
 
             <label class="block text-[10px] font-black uppercase text-slate-500 mb-1">SELECT TARGET</label>
@@ -329,14 +341,14 @@
 
         window.onload = () => {
             try { 
-                const saved = localStorage.getItem('timetable_v770_p10'); 
+                const saved = localStorage.getItem('timetable_v770_p11'); 
                 if (saved) {
                     const parsed = JSON.parse(saved);
                     if(validateState(parsed)) state = parsed;
                     else throw new Error("Schema Validation Failed.");
                 }
             } 
-            catch (e) { console.error("Corrupted cache safely wiped.", e); localStorage.removeItem('timetable_v770_p10'); }
+            catch (e) { console.error("Corrupted cache safely wiped.", e); localStorage.removeItem('timetable_v770_p11'); }
             render();
             document.getElementById('adjDate').value = new Date().toISOString().split('T')[0];
         };
@@ -420,7 +432,7 @@
             });
             if(!state.classes.some(c=>c.tier==='junior')) grid.appendChild(createHeader('junior'));
             if(!state.classes.some(c=>c.tier==='senior')) grid.appendChild(createHeader('senior'));
-            localStorage.setItem('timetable_v770_p10', JSON.stringify(state));
+            localStorage.setItem('timetable_v770_p11', JSON.stringify(state));
         }
 
         function renderSidebar() {
@@ -534,19 +546,15 @@
             closeModal('regModal'); render(); 
         }
         
-        // PHASE 10: Cascade Delete Integrity Fix
         function deleteRegistry(e, type, idx) { 
             e.stopPropagation(); const list = type === 'sub' ? state.registry.subjects : state.registry.teachers; const item = list[idx]; if(!item) return; 
             if(confirm(`WARNING: Delete ${item.s}? It will be permanently removed from all active assignments in the grid.`)) { 
                 saveStateToHistory(); 
                 state.rules.forEach(r => { if(!r) return; if(type === 'sub' && r.sub === item.s) r.sub = ''; if(type === 'tea' && r.tea === item.s) r.tea = ''; }); 
-                
-                // Referential Cascade for Volatile States
                 if(type === 'tea') {
                     adjustState.absent = adjustState.absent.filter(x => x !== item.s);
                     Object.keys(adjustState.covers).forEach(k => { if(adjustState.covers[k] === item.s) delete adjustState.covers[k]; });
                 }
-
                 list.splice(idx, 1); render(); showToast(`${item.s} deleted.`, "info"); 
             } 
         }
@@ -554,7 +562,6 @@
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
         function exportData() { const b = new Blob([JSON.stringify(state)], {type:'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'timetable.json'; a.click(); showToast("Data exported successfully.", "success"); }
         
-        // PHASE 10: Validated Import Engine
         function importData(e) { 
             const file = e.target.files[0]; if (!file) return; const r = new FileReader(); 
             r.onload = () => { 
@@ -570,14 +577,13 @@
             r.readAsText(file); 
         }
 
-        /* ================== PAGE ORIENTATION ENGINE ================== */
         function setPrintOrientation(orient) {
             let s = document.getElementById('printPageStyle');
             if(!s) { s = document.createElement('style'); s.id = 'printPageStyle'; document.head.appendChild(s); }
             s.innerHTML = orient === 'landscape' ? '@page { size: landscape; margin: 10mm; }' : '@page { size: A4 portrait; margin: 15mm; }';
         }
 
-        /* ================== DAILY SUBS (PATCHED) ================== */
+        /* ================== DAILY SUBS ================== */
         function openAdjustments() { adjustState = { dateStr: document.getElementById('adjDate').value, dayIndex: -1, absent: [], covers: {}, draggedSub: null }; document.getElementById('adjModal').style.display = 'flex'; goToSetupView(); renderAdjTeachers(); }
         function closeAdjustments() { document.getElementById('adjModal').style.display = 'none'; }
         function goToSetupView() { document.getElementById('adjView1').style.display = 'block'; document.getElementById('adjView2').style.display = 'none'; }
@@ -586,7 +592,6 @@
         function renderAdjTeachers() {
             const dateVal = document.getElementById('adjDate').value; if(!dateVal) return;
             adjustState.dateStr = dateVal; 
-            // Phase 10.1: Timezone parsing fix
             const [y, m, d] = dateVal.split('-');
             const jsDay = new Date(y, m - 1, d).getDay(); 
             adjustState.dayIndex = jsDay === 0 ? -1 : jsDay - 1; 
@@ -608,7 +613,6 @@
             return { clsTier: cls.tier, pName: p.n, s: Number(p.s), e: Number(p.e) }; 
         }
 
-        // Phase 10.1: Force Number coercion for strict math
         function isOverlapping(s1, e1, s2, e2) { return (Number(s1) < Number(e2) && Number(e1) > Number(s2)); }
         
         function getLiveTeacherLoad(teaCode) { let masterLoad = 0; state.rules.forEach(r => { if(r.tea === teaCode && r.days[adjustState.dayIndex]) masterLoad++; }); let coverLoad = Object.values(adjustState.covers).filter(v => v === teaCode).length; return masterLoad + coverLoad; }
@@ -641,16 +645,10 @@
             let present = state.registry.teachers.filter(t => !adjustState.absent.includes(t.s)).sort((a,b) => getLiveTeacherLoad(a.s) - getLiveTeacherLoad(b.s));
             present.forEach(t => {
                 const pill = document.createElement('div'); pill.className = "sub-pill"; pill.draggable = true; 
-                
-                // Phase 10.1: Mandatory data payload for drag API
                 pill.ondragstart = (e) => { 
                     adjustState.draggedSub = t.s; 
-                    if(e.dataTransfer) {
-                        e.dataTransfer.effectAllowed = 'move';
-                        e.dataTransfer.setData('text/plain', t.s); 
-                    }
+                    if(e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', t.s); }
                 };
-                
                 pill.innerHTML = `<div><span class="font-black text-xs text-slate-800">${t.f}</span> <span class="text-[9px] text-slate-400 font-bold uppercase block mt-0.5">[${t.d || 'Teacher'}]</span></div> <div class="bg-slate-100 border border-slate-200 text-slate-500 font-black text-[9px] px-2 py-1 rounded">Load: ${getLiveTeacherLoad(t.s)}</div>`;
                 subsPanel.appendChild(pill);
             });
@@ -658,11 +656,8 @@
 
         function assignCover(ruleId, teaCode) {
             if(!teaCode) return; 
-            const targetRule = state.rules.find(r => r.id === ruleId);
-            if (!targetRule) return;
-            const tDet = getRuleDetails(targetRule);
-            if (!tDet) return;
-
+            const targetRule = state.rules.find(r => r.id === ruleId); if (!targetRule) return;
+            const tDet = getRuleDetails(targetRule); if (!tDet) return;
             let isBusy = false;
             state.rules.forEach(r => { if(r.tea === teaCode && r.days[adjustState.dayIndex]) { const d = getRuleDetails(r); if(d && isOverlapping(tDet.s, tDet.e, d.s, d.e)) isBusy = true; } });
             Object.entries(adjustState.covers).forEach(([rId, sCode]) => { if(sCode === teaCode) { const d = getRuleDetails(state.rules.find(x => x.id === rId)); if(d && isOverlapping(tDet.s, tDet.e, d.s, d.e)) isBusy = true; } });
@@ -681,24 +676,9 @@
                 if(adjustState.covers[aff.ruleId]) return; 
                 let available = state.registry.teachers.filter(t => {
                     if(adjustState.absent.includes(t.s)) return false;
-                    
-                    let isBusyMaster = state.rules.some(r => {
-                        if (r.tea === t.s && r.days[adjustState.dayIndex]) {
-                            const d = getRuleDetails(r);
-                            return d && isOverlapping(aff.s, aff.e, d.s, d.e);
-                        }
-                        return false;
-                    });
+                    let isBusyMaster = state.rules.some(r => { if (r.tea === t.s && r.days[adjustState.dayIndex]) { const d = getRuleDetails(r); return d && isOverlapping(aff.s, aff.e, d.s, d.e); } return false; });
                     if (isBusyMaster) return false;
-
-                    let isBusyCover = Object.entries(adjustState.covers).some(([rId, subCode]) => {
-                        if (subCode !== t.s) return false;
-                        const cr = state.rules.find(x => x.id === rId);
-                        if (!cr) return false;
-                        const d = getRuleDetails(cr);
-                        return d && isOverlapping(aff.s, aff.e, d.s, d.e);
-                    });
-                    
+                    let isBusyCover = Object.entries(adjustState.covers).some(([rId, subCode]) => { if (subCode !== t.s) return false; const cr = state.rules.find(x => x.id === rId); if (!cr) return false; const d = getRuleDetails(cr); return d && isOverlapping(aff.s, aff.e, d.s, d.e); });
                     return !isBusyCover;
                 });
                 
@@ -706,16 +686,9 @@
                 
                 const isSeniorClass = aff.clsTier === 'senior';
                 available.sort((a, b) => {
-                    // Phase 10.1: Safe lowercase check for designations
-                    const aDesig = (a.d || '').toLowerCase();
-                    const bDesig = (b.d || '').toLowerCase();
-                    
-                    const aSen = aDesig.includes('lecturer') || aDesig.includes('pgt');
-                    const bSen = bDesig.includes('lecturer') || bDesig.includes('pgt');
-                    
-                    const aMatch = (isSeniorClass && aSen) || (!isSeniorClass && !aSen);
-                    const bMatch = (isSeniorClass && bSen) || (!isSeniorClass && !bSen);
-
+                    const aDesig = (a.d || '').toLowerCase(); const bDesig = (b.d || '').toLowerCase();
+                    const aSen = aDesig.includes('lecturer') || aDesig.includes('pgt'); const bSen = bDesig.includes('lecturer') || bDesig.includes('pgt');
+                    const aMatch = (isSeniorClass && aSen) || (!isSeniorClass && !aSen); const bMatch = (isSeniorClass && bSen) || (!isSeniorClass && !bSen);
                     if (aMatch && !bMatch) return -1;
                     if (!aMatch && bMatch) return 1;
                     return getLiveTeacherLoad(a.s) - getLiveTeacherLoad(b.s);
@@ -754,9 +727,15 @@
         function updateReportTargets() {
             const type = document.getElementById('repType').value;
             const target = document.getElementById('repTarget');
-            target.innerHTML = '<option value="ALL">All (Batch Print)</option>';
-            if(type === 'class') state.classes.forEach(c => target.innerHTML += `<option value="${c.name}">${c.name}</option>`);
-            else state.registry.teachers.forEach(t => target.innerHTML += `<option value="${t.s}">${t.f} (${t.s})</option>`);
+            if(type === 'matrix') {
+                target.innerHTML = '<option value="ALL">All Classes (Single Page)</option>';
+                target.disabled = true;
+            } else {
+                target.disabled = false;
+                target.innerHTML = '<option value="ALL">All (Batch Print)</option>';
+                if(type === 'class') state.classes.forEach(c => target.innerHTML += `<option value="${c.name}">${c.name}</option>`);
+                else state.registry.teachers.forEach(t => target.innerHTML += `<option value="${t.s}">${t.f} (${t.s})</option>`);
+            }
         }
 
         function executePrintReport() {
@@ -766,7 +745,8 @@
             layout.innerHTML = '';
             
             if(type === 'class') generateClassReports(target, layout);
-            else generateTeacherReports(target, layout);
+            else if(type === 'teacher') generateTeacherReports(target, layout);
+            else if(type === 'matrix') generateMatrixReport(layout);
             
             setPrintOrientation('landscape');
             layout.classList.add('is-printing');
@@ -872,6 +852,79 @@
                 html += `</div></div>`;
                 container.innerHTML += html;
             });
+        }
+
+        /* PHASE 11: Master Matrix Proportional Generator */
+        function generateMatrixReport(container) {
+            let S = 9999, E = 0; let hasPeriods = false;
+            Object.values(state.blueprints).forEach(bp => {
+                bp.forEach(p => { hasPeriods = true; if (Number(p.s) < S) S = Number(p.s); if (Number(p.e) > E) E = Number(p.e); });
+            });
+            if (!hasPeriods) { showToast("No periods defined.", "error"); return; }
+            let T = E - S; if(T <= 0) return;
+
+            let html = `<div class="matrix-print-container">`;
+            let currentTier = null;
+            let sortedClasses = state.classes.slice().sort((a,b) => { const pA = parseInt(a.name) || 999; const pB = parseInt(b.name) || 999; return (a.tier||'') === (b.tier||'') ? pA - pB : ((a.tier||'') === 'junior' ? -1 : 1); });
+            
+            if(sortedClasses.length === 0) {
+                if(state.blueprints.junior && state.blueprints.junior.length) html += renderMatrixHeader('junior', S, T);
+                if(state.blueprints.senior && state.blueprints.senior.length) html += renderMatrixHeader('senior', S, T);
+            } else {
+                sortedClasses.forEach(cls => {
+                    if (cls.tier !== currentTier) { currentTier = cls.tier; html += renderMatrixHeader(currentTier, S, T); }
+                    html += renderMatrixRow(cls, S, T);
+                });
+            }
+            html += `</div>`;
+
+            let usedSubs = new Set(), usedTeas = new Set();
+            state.rules.forEach(r => { if(r.sub) usedSubs.add(r.sub); if(r.tea) usedTeas.add(r.tea); });
+            let subLeg = Array.from(usedSubs).map(s => `<b>${s}</b>: ${getFullSub(s)}`).join(' | ');
+            let teaLeg = Array.from(usedTeas).map(t => `<b>${t}</b>: ${getFullTea(t)}`).join(' | ');
+            html += `<div style="margin-top:5px; font-size:8px; border-top:1px solid #000; padding-top:2px; text-align:center; line-height:1.2;">`;
+            if(subLeg) html += `[SUBJECTS] ${subLeg} &nbsp;&nbsp;||&nbsp;&nbsp; `;
+            if(teaLeg) html += `[TEACHERS] ${teaLeg}`;
+            html += `</div>`;
+
+            container.innerHTML = html;
+        }
+
+        function renderMatrixHeader(tier, S, T) {
+            let html = `<div class="matrix-row matrix-header-row"><div class="matrix-label">${(tier||'').toUpperCase()} TIER</div><div class="matrix-timeline">`;
+            let bp = state.blueprints[tier] || [];
+            bp.forEach(p => {
+                let leftP = ((Number(p.s) - S) / T) * 100; let widthP = ((Number(p.e) - Number(p.s)) / T) * 100;
+                html += `<div class="matrix-block matrix-header-block" style="left:${leftP}%; width:${widthP}%;"><b>${p.n}</b><span style="font-size:7px;font-weight:normal;">${formatTime(p.s)} - ${formatTime(p.e)}</span></div>`;
+            });
+            html += `</div></div>`; return html;
+        }
+
+        function renderMatrixRow(cls, S, T) {
+            let html = `<div class="matrix-row"><div class="matrix-label" style="background:#fff !important; font-size:12px;">${cls.name}</div><div class="matrix-timeline">`;
+            let bp = state.blueprints[cls.tier] || [];
+            bp.forEach(p => {
+                let leftP = ((Number(p.s) - S) / T) * 100; let widthP = ((Number(p.e) - Number(p.s)) / T) * 100;
+                if (p.r) {
+                    html += `<div class="matrix-block recess" style="left:${leftP}%; width:${widthP}%;">RECESS</div>`;
+                } else {
+                    html += `<div class="matrix-block" style="left:${leftP}%; width:${widthP}%;">`;
+                    let rulesForPeriod = state.rules.filter(r => r.class === cls.name && r.periodId === p.id && r.days.some(d=>d));
+                    let splits = [];
+                    rulesForPeriod.forEach(r => { if(!r.sub && !r.tea) return; splits.push({ sub: r.sub, tea: r.tea, days: getDayLabel(r.days) }); });
+                    if (splits.length > 0) {
+                        splits.forEach((sp, idx) => {
+                            let br = idx < splits.length - 1 ? 'border-right: 1px dashed #000;' : '';
+                            html += `<div style="flex:1; ${br} display:flex; flex-direction:column; align-items:center; justify-content:center; overflow:hidden; padding:1px;">
+                                <b style="font-size:11px; line-height:1;">${sp.sub||'-'}</b>
+                                <span style="font-size:9px; color:#333; line-height:1.1; font-weight:bold;">${sp.tea||'-'}</span>
+                                <span style="font-size:7px; color:#555; line-height:1;">(${sp.days})</span></div>`;
+                        });
+                    }
+                    html += `</div>`;
+                }
+            });
+            html += `</div></div>`; return html;
         }
     </script>
 </body>
