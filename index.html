@@ -25,12 +25,12 @@
         .toggle-btn:hover { background: #e2e8f0; color: #0f172a; }
 
         /* GRID & TIMELINE */
-        .workspace { flex: 1; overflow: auto; background: #f1f5f9; padding: 24px; position: relative; display: block; }
+        .workspace { flex: 1; overflow: auto; background: #f1f5f9; padding: 24px; position: relative; display: block; width: 100%; }
         .main-grid { transform-origin: top left; transform: scale(var(--grid-scale)); border: 2px solid #000; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); width: fit-content; min-width: max-content; background: white; }
-        .architect-row { display: flex; width: fit-content; border-bottom: 2px solid #000; background: white; }
-        .period-header { background: #000; color: white; height: 60px; position: sticky; top: 0; z-index: 500; }
+        .architect-row { display: flex; width: max-content; border-bottom: 2px solid #000; background: white; }
+        .period-header { background: #000; color: white; height: 60px; position: sticky; top: 0; z-index: 200; }
         
-        .label-box { width: var(--label-width); flex-shrink: 0; background: #f1f5f9; border-right: 4px solid #000; display: flex; align-items: center; justify-content: center; font-weight: 900; text-transform: uppercase; font-size: 14px; position: sticky; left: 0; z-index: 60; cursor: pointer; }
+        .label-box { width: var(--label-width); flex-shrink: 0; background: #f1f5f9; border-right: 4px solid #000; display: flex; align-items: center; justify-content: center; font-weight: 900; text-transform: uppercase; font-size: 14px; position: sticky; left: 0; z-index: 150; cursor: pointer; }
         .hover-actions { opacity: 0; position: absolute; right: 4px; display: flex; gap: 2px; transition: 0.15s; background: rgba(255,255,255,0.9); padding: 2px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); pointer-events: none; }
         .label-box:hover .hover-actions, .p-block:hover .hover-actions { opacity: 1; pointer-events: auto; }
 
@@ -98,7 +98,6 @@
             body > *:not(.is-printing) { display: none !important; }
             .is-printing { display: block !important; position: static; margin: 0; padding: 0; width: 100%; background: white; }
             
-            /* Circulation Sheet Overrides */
             .print-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
             .print-table th, .print-table td { border: 2px solid #000; padding: 12px; text-align: center; font-family: 'Inter Tight', sans-serif; }
             .print-table th { background-color: #f1f5f9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-weight: 900; text-transform: uppercase; font-size: 14px; }
@@ -108,7 +107,6 @@
             .print-meta { display: flex; justify-content: space-between; font-weight: 900; font-size: 14px; margin-bottom: 10px; }
             .print-sig { border: 2px dashed #cbd5e1; height: 30px; width: 120px; margin: 0 auto; }
 
-            /* Master Report Overrides */
             .report-table { width: 100%; border-collapse: collapse; border: 2px solid #000; text-align: center; font-family: 'Inter Tight', sans-serif; }
             .report-table th, .report-table td { border: 1px solid #000; padding: 6px; }
             .report-table th { font-weight: 900; background: #f8fafc !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 12px; }
@@ -116,7 +114,6 @@
             .page-break { page-break-after: always; }
             .page-break:last-child { page-break-after: auto; }
 
-            /* Phase 11: Master Matrix Print Core */
             .matrix-print-container { display: flex; flex-direction: column; width: 100%; height: 96vh; border: 2px solid #000; box-sizing: border-box; font-family: 'Inter Tight', sans-serif; page-break-inside: avoid; }
             .matrix-row { display: flex; flex: 1; min-height: 0; border-bottom: 1px solid #000; box-sizing: border-box; }
             .matrix-row:last-child { border-bottom: none; }
@@ -305,11 +302,13 @@
     </div>
 
     <script>
-        // XSS Sanitizer
+        // XSS Sanitizer & Unicode Bullet Filter
         const sanitize = (str) => {
             if (!str) return '';
+            let cleanStr = str.replace(/[\u2022\u25AA\u2043\u2219\t]/g, '');
+            cleanStr = cleanStr.replace(/^[\s*\-_#]+|[\s*\-_#]+$/g, '');
             const temp = document.createElement('div');
-            temp.textContent = str;
+            temp.textContent = cleanStr.trim();
             return temp.innerHTML.replace(/'/g, "&#39;").replace(/"/g, "&quot;");
         };
 
@@ -339,16 +338,38 @@
 
         let adjustState = { dateStr: '', dayIndex: -1, absent: [], covers: {}, draggedSub: null };
 
+        // Cross-Tab Atomic Sync Interceptor
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'architect_matrix_state' && e.newValue) {
+                try {
+                    const freshState = JSON.parse(e.newValue);
+                    if (validateState(freshState)) {
+                        state = freshState;
+                        if (document.getElementById('adjModal').style.display === 'flex') {
+                            renderAdjBoard();
+                        } else {
+                            render();
+                        }
+                        showToast("🔄 Timetable state synchronized across tabs.", "info");
+                    }
+                } catch (err) { console.error("Tab synchronization frame collision prevented.", err); }
+            }
+        });
+
         window.onload = () => {
             try { 
-                const saved = localStorage.getItem('timetable_v770_p11'); 
+                const saved = localStorage.getItem('architect_matrix_state'); 
                 if (saved) {
                     const parsed = JSON.parse(saved);
                     if(validateState(parsed)) state = parsed;
                     else throw new Error("Schema Validation Failed.");
                 }
             } 
-            catch (e) { console.error("Corrupted cache safely wiped.", e); localStorage.removeItem('timetable_v770_p11'); }
+            catch (e) { console.error("Corrupted cache safely wiped.", e); localStorage.removeItem('architect_matrix_state'); }
+            
+            if (!state.blueprints.junior) state.blueprints.junior = [];
+            if (!state.blueprints.senior) state.blueprints.senior = [];
+            
             render();
             document.getElementById('adjDate').value = new Date().toISOString().split('T')[0];
         };
@@ -361,10 +382,10 @@
         }
 
         function saveStateToHistory() { historyStack.push(JSON.stringify(state)); if(historyStack.length > 20) historyStack.shift(); }
-        function undo() { if(historyStack.length > 0) { state = JSON.parse(historyStack.pop()); render(); showToast("Undo successful", "info"); } else { showToast("Nothing to undo", "error"); } }
+        function undo() { if(historyStack.length > 0) { state = JSON.parse(historyStack.pop()); localStorage.setItem('architect_matrix_state', JSON.stringify(state)); render(); showToast("Undo successful", "info"); } else { showToast("Nothing to undo", "error"); } }
         document.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); } });
 
-        function wipeClear() { if(confirm("DANGER: Wipe entire schedule?")) { saveStateToHistory(); state = { registry: { subjects: [], teachers: [] }, classes: [], blueprints: { junior: [], senior: [] }, rules: [] }; render(); showToast("Schedule wiped.", "error"); } }
+        function wipeClear() { if(confirm("DANGER: Wipe entire schedule?")) { saveStateToHistory(); state = { registry: { subjects: [], teachers: [] }, classes: [], blueprints: { junior: [], senior: [] }, rules: [] }; localStorage.setItem('architect_matrix_state', JSON.stringify(state)); render(); showToast("Schedule wiped.", "error"); } }
         function toggleSidebar(e, id) { e.stopPropagation(); document.getElementById(id).classList.toggle('collapsed'); }
         function expandSidebar(e, id) { const el = document.getElementById(id); if(el.classList.contains('collapsed')) el.classList.remove('collapsed'); }
 
@@ -380,30 +401,44 @@
             const list = type === 'sub' ? (state.registry.subjects || []) : (state.registry.teachers || []);
             const item = list.find(x => x.s === shortCode);
             if (!item) return;
-            let txt = `<b>${item.f}</b>`; if (item.d) txt += `<br><span style="color:#94a3b8;font-size:9px;">${item.d}</span>`;
+            let txt = `<b>${sanitize(item.f)}</b>`; if (item.d) txt += `<br><span style="color:#94a3b8;font-size:9px;">${sanitize(item.d)}</span>`;
             showTooltip(e, txt);
         }
 
         function showClashTooltip(e, ruleId) { if (currentClashMap[ruleId]) showTooltip(e, currentClashMap[ruleId].join('<br>')); }
+
+        function getRuleDetails(r) {
+            if (!r) return null;
+            const cls = state.classes.find(c => c.name === r.class);
+            if (!cls || !cls.tier) return null;
+            
+            const tierBlueprint = state.blueprints[cls.tier];
+            if (!tierBlueprint || !Array.isArray(tierBlueprint)) return null;
+            
+            const p = tierBlueprint.find(x => x.id === r.periodId);
+            
+            if (!p || p.s === undefined || p.e === undefined) {
+                console.warn(`Data Linkage Breakup: Rule ${r.id} points to an invalid period mapping (${r.periodId}).`);
+                return { clsTier: cls.tier, pName: "UNKNOWN", s: 0, e: 0 }; 
+            }
+            return { clsTier: cls.tier, pName: p.n, s: Number(p.s), e: Number(p.e) };
+        }
 
         function auditClashes() {
             let clashMap = {}; let count = 0;
             if(!state.rules || !state.classes || !state.blueprints) return { map: clashMap, count };
             state.rules.forEach(r => {
                 if(!r || !r.tea || !r.days) return;
-                const rCls = state.classes.find(c => c.name === r.class);
-                if(!rCls || !rCls.tier || !state.blueprints[rCls.tier]) return;
-                const rP = state.blueprints[rCls.tier].find(x => x.id === r.periodId);
-                if(!rP) return;
+                const rDet = getRuleDetails(r);
+                if(!rDet) return;
                 r.days.forEach((isActive, dIdx) => {
                     if(!isActive) return;
                     state.rules.forEach(other => {
                         if(!other || r.id === other.id || other.tea !== r.tea || !other.days || !other.days[dIdx]) return;
-                        const oCls = state.classes.find(c => c.name === other.class);
-                        if(!oCls || !oCls.tier || !state.blueprints[oCls.tier]) return;
-                        const oP = state.blueprints[oCls.tier].find(x => x.id === other.periodId);
-                        if(!oP) return;
-                        if(rP.s < oP.e && rP.e > oP.s) { if(!clashMap[r.id]) { clashMap[r.id] = []; count++; } clashMap[r.id].push(`&#9888; Double-Booked: ${r.tea} is also in <b>${other.class}</b> on <b>${DAY_NAMES[dIdx]}</b>.`); }
+                        if(r.sub === 'CCA' && r.class !== other.class) return; // CCA Bypass
+                        const oDet = getRuleDetails(other);
+                        if(!oDet) return;
+                        if(rDet.s < oDet.e && rDet.e > oDet.s) { if(!clashMap[r.id]) { clashMap[r.id] = []; count++; } clashMap[r.id].push(`&#9888; Double-Booked: ${r.tea} is also in <b>${other.class}</b> on <b>${DAY_NAMES[dIdx]}</b>.`); }
                     });
                 });
             });
@@ -432,7 +467,7 @@
             });
             if(!state.classes.some(c=>c.tier==='junior')) grid.appendChild(createHeader('junior'));
             if(!state.classes.some(c=>c.tier==='senior')) grid.appendChild(createHeader('senior'));
-            localStorage.setItem('timetable_v770_p11', JSON.stringify(state));
+            localStorage.setItem('architect_matrix_state', JSON.stringify(state));
         }
 
         function renderSidebar() {
@@ -445,8 +480,10 @@
 
         function createSidePill(type, item, idx, count) {
             const d = document.createElement('div'); d.className = 'pill'; d.draggable = true;
-            const desigHtml = item.d ? `<span class="text-[8px] font-normal opacity-50 block leading-tight truncate w-20">${item.d}</span>` : '';
-            d.innerHTML = `<div><span>${item.s}</span>${desigHtml}</div><div class="flex gap-2 items-center"><span class="pill-count">${count}</span><i class="icon-btn text-indigo-600 hover:text-indigo-900" onclick="openRegModal('${type}', ${idx})">✎</i><i class="icon-btn text-rose-600 hover:text-rose-900" onclick="deleteRegistry(event, '${type}', ${idx})">🗑</i></div>`;
+            const cleanShort = sanitize(item.s);
+            const cleanDesig = item.d ? sanitize(item.d) : '';
+            const desigHtml = cleanDesig ? `<span class="text-[8px] font-normal opacity-50 block leading-tight truncate w-20">${cleanDesig}</span>` : '';
+            d.innerHTML = `<div><span>${cleanShort}</span>${desigHtml}</div><div class="flex gap-2 items-center"><span class="pill-count">${count}</span><i class="icon-btn text-indigo-600 hover:text-indigo-900" onclick="openRegModal('${type}', ${idx})">✎</i><i class="icon-btn text-rose-600 hover:text-rose-900" onclick="deleteRegistry(event, '${type}', ${idx})">🗑</i></div>`;
             d.ondragstart = () => dragged = {type, val: item.s};
             d.onmouseover = (e) => showNameTooltip(e, item.s, type);
             d.onmouseleave = hideTooltip; return d;
@@ -458,23 +495,31 @@
             if(state.blueprints && Array.isArray(state.blueprints[tier])) {
                 state.blueprints[tier].forEach(p => {
                     const div = document.createElement('div'); div.className = 'p-block'; div.style.width = minToPx((p.e||0) - (p.s||0)) + 'px';
-                    div.innerHTML = `${p.n} <span>${formatTime(p.s||0)}-${formatTime(p.e||0)}</span><div class="hover-actions bg-black/60 p-1 rounded backdrop-blur"><i class="icon-btn text-white" onclick="openPerModal('${p.id}', '${tier}')">✎</i><i class="icon-btn text-red-400" onclick="deletePeriod('${p.id}', '${tier}')">🗑</i></div>`;
+                    div.innerHTML = `${sanitize(p.n)} <span>${formatTime(p.s||0)}-${formatTime(p.e||0)}</span><div class="hover-actions bg-black/60 p-1 rounded backdrop-blur"><i class="icon-btn text-white" onclick="openPerModal('${p.id}', '${tier}')">✎</i><i class="icon-btn text-red-400" onclick="deletePeriod('${p.id}', '${tier}')">🗑</i></div>`;
                     row.appendChild(div);
                 });
             }
-            const tierAdd = document.createElement('div'); tierAdd.className = 'flex items-center px-4 cursor-pointer hover:bg-white/10'; tierAdd.innerHTML = `<span onclick="openPerModal(null, '${tier}')" class="text-xl font-black">+</span>`; row.appendChild(tierAdd); return row;
+            const tierAdd = document.createElement('div'); tierAdd.className = 'flex items-center px-4 cursor-pointer hover:bg-white/10 flex-shrink-0'; tierAdd.innerHTML = `<span onclick="openPerModal(null, '${tier}')" class="text-xl font-black">+</span>`; row.appendChild(tierAdd); return row;
         }
 
         function createRow(cls, clashMap) {
             const row = document.createElement('div'); row.className = 'architect-row';
-            row.innerHTML = `<div class="label-box relative">${cls.name}<div class="hover-actions"><i class="icon-btn text-indigo-600" onclick="openClsModal('${cls.name}', '${cls.tier}')">✎</i><i class="icon-btn text-rose-600" onclick="deleteClass('${cls.name}')">🗑</i></div></div>`;
+            const safeClassName = sanitize(cls.name);
+            row.innerHTML = `<div class="label-box relative" data-class-name="${safeClassName}">${safeClassName}<div class="hover-actions"><i class="icon-btn text-indigo-600" onclick="openClsModal('${safeClassName}', '${cls.tier}')">✎</i><i class="icon-btn text-rose-600" onclick="deleteClass('${safeClassName}')">🗑</i></div></div>`;
             if(state.blueprints && Array.isArray(state.blueprints[cls.tier])) {
                 state.blueprints[cls.tier].forEach(p => {
                     const cell = document.createElement('div'); const width = minToPx((p.e||0) - (p.s||0)) + 'px';
                     if (p.r) { cell.className = 'recess-block'; cell.innerText = 'RECESS'; cell.style.width = width; } else {
                         cell.className = 'time-slot'; cell.style.width = width; cell.ondragover = e => e.preventDefault(); cell.ondrop = e => handleGenericDrop(e, cls.name, p.id);
-                        if(state.rules) {
-                            state.rules.filter(r => r && r.class === cls.name && r.periodId === p.id).forEach(rule => {
+                        
+                        const slotsForThisPeriod = state.rules ? state.rules.filter(r => r && r.class === cls.name && r.periodId === p.id) : [];
+                        if (slotsForThisPeriod.length === 0) {
+                            const placeholder = document.createElement('div');
+                            placeholder.className = 'w-full h-full flex items-center justify-center text-slate-300 font-bold text-xs pointer-events-none opacity-40';
+                            placeholder.innerText = 'Empty Slot';
+                            cell.appendChild(placeholder);
+                        } else {
+                            slotsForThisPeriod.forEach(rule => {
                                 const isClash = clashMap[rule.id]; const clashClass = isClash ? 'has-clash' : '';
                                 const subEvents = rule.sub ? `onmouseover="showNameTooltip(event, '${rule.sub}', 'sub')" onmouseleave="hideTooltip()"` : ''; const teaEvents = rule.tea ? `onmouseover="showNameTooltip(event, '${rule.tea}', 'tea')" onmouseleave="hideTooltip()"` : ''; const dayEvents = isClash ? `onmouseover="showClashTooltip(event, '${rule.id}')" onmouseleave="hideTooltip()"` : '';
                                 const col = document.createElement('div'); col.className = `vertical-col ${activeRuleId === rule.id ? 'active' : ''} ${clashClass}`;
@@ -489,20 +534,96 @@
             } return row;
         }
 
-        function handleGenericDrop(e, cls, pId) { e.preventDefault(); saveStateToHistory(); const rid = generateId('r'); const nr = { id: rid, class: cls, periodId: pId, sub: '', tea: '', days: [false,false,false,false,false,false] }; if(dragged.type === 'sub') nr.sub = dragged.val; else nr.tea = dragged.val; state.rules.push(nr); activeRuleId = rid; render(); }
-        function handleTargetedDrop(e, rid, type) { e.preventDefault(); e.stopPropagation(); if(dragged.type !== type) return; const r = state.rules.find(x => x.id === rid); if (type === 'tea') { for(let i=0; i<6; i++) { if(r.days && r.days[i] && checkClash(dragged.val, i, r.class, r.periodId, r.id)) { showToast(`⚠️ Rejection: ${dragged.val} is busy on ${DAY_NAMES[i]} at this time.`, 'error'); return; } } } saveStateToHistory(); r[type] = dragged.val; render(); }
-        function clearValue(e, rid, type) { e.stopPropagation(); saveStateToHistory(); const r = state.rules.find(x => x.id === rid); if(r) r[type] = ''; render(); }
+        function handleGenericDrop(e, cls, pId) { 
+            e.preventDefault(); saveStateToHistory(); 
+            const cleanVal = dragged.val ? dragged.val.trim() : '';
+            let existingRule = state.rules.find(r => r.class === cls && r.periodId === pId && (!r.sub || r.sub === cleanVal || !r.tea || r.tea === cleanVal));
+            
+            if (existingRule) {
+                if (dragged.type === 'sub') existingRule.sub = cleanVal; else existingRule.tea = cleanVal;
+                activeRuleId = existingRule.id;
+            } else {
+                const rid = generateId('r'); 
+                const nr = { id: rid, class: cls, periodId: pId, sub: dragged.type === 'sub' ? cleanVal : '', tea: dragged.type === 'tea' ? cleanVal : '', days: [false,false,false,false,false,false] }; 
+                state.rules.push(nr); activeRuleId = rid; 
+            }
+            localStorage.setItem('architect_matrix_state', JSON.stringify(state));
+            render(); 
+        }
+
+        function handleTargetedDrop(e, rid, type) { 
+            e.preventDefault(); e.stopPropagation(); if(dragged.type !== type) return; 
+            const r = state.rules.find(x => x.id === rid); if (!r) return;
+            const cleanVal = dragged.val ? dragged.val.trim() : '';
+
+            if (type === 'tea') { 
+                for(let i=0; i<6; i++) { 
+                    if(r.days && r.days[i] && checkClash(cleanVal, i, r.class, r.periodId, r.id)) { showToast(`⚠️ Rejection: ${cleanVal} is busy on ${DAY_NAMES[i]} at this time.`, 'error'); return; } 
+                } 
+            } 
+            saveStateToHistory(); 
+
+            const activeDaysCount = r.days.filter(d => d).length;
+            if (activeDaysCount > 1 && adjustState.dayIndex !== -1) {
+                const dIdx = adjustState.dayIndex;
+                if (r.days[dIdx]) {
+                    r.days[dIdx] = false;
+                    const splitId = generateId('r');
+                    const splitRule = JSON.parse(JSON.stringify(r));
+                    splitRule.id = splitId;
+                    splitRule.days = [false, false, false, false, false, false];
+                    splitRule.days[dIdx] = true;
+                    splitRule[type] = cleanVal;
+                    state.rules.push(splitRule);
+                    localStorage.setItem('architect_matrix_state', JSON.stringify(state));
+                    render();
+                    return;
+                }
+            }
+
+            r[type] = cleanVal; 
+            localStorage.setItem('architect_matrix_state', JSON.stringify(state));
+            render(); 
+        }
+
+        function clearValue(e, rid, type) { 
+            e.stopPropagation(); saveStateToHistory(); 
+            const r = state.rules.find(x => x.id === rid); 
+            if(r) {
+                r[type] = ''; 
+                if (!r.sub.trim() && !r.tea.trim()) r.days = [false, false, false, false, false, false];
+            }
+            localStorage.setItem('architect_matrix_state', JSON.stringify(state));
+            render(); 
+        }
+
         function getDayLabel(days) { const active = []; days.forEach((d, i) => { if (d) active.push(i + 1); }); if (active.length === 0) return "0"; const isContinuous = active.every((val, i) => i === 0 || val === active[i - 1] + 1); if (isContinuous && active.length > 1) return `${active[0]}-${active[active.length - 1]}`; return active.join(','); }
         
-        function createDayStrip(rule) { const strip = document.createElement('div'); strip.className = 'day-strip'; const allSelected = (rule.days||[]).every(d => d); strip.innerHTML += `<div class="day-toggle master ${allSelected?'selected':''}" onclick="toggleAllDays(event, '${rule.id}', ${allSelected})">1-6</div>`; ["M","T","W","T","F","S"].forEach((d, i) => { const isClash = checkClash(rule.tea, i, rule.class, rule.periodId, rule.id); strip.innerHTML += `<div class="day-toggle ${(rule.days||[])[i]?'selected':''} ${isClash?'clash':''}" onclick="toggleDay(event, '${rule.id}', ${i}, ${isClash})">${d}</div>`; }); return strip; }
-        function toggleAllDays(e, rid, currentlyAll) { e.stopPropagation(); saveStateToHistory(); const r = state.rules.find(x => x.id === rid); if(!r) return; if (currentlyAll) { r.days = [false,false,false,false,false,false]; } else { for(let i=0; i<6; i++) { if(!checkClash(r.tea, i, r.class, r.periodId, r.id)) r.days[i] = true; } } render(); }
-        function checkClash(tea, day, clsName, pId, exId) { if(!tea || !state.classes || !state.blueprints || !state.rules) return false; const cls = state.classes.find(c => c.name === clsName); if(!cls) return false; const p = state.blueprints[cls.tier] && state.blueprints[cls.tier].find(x => x.id === pId); if(!p) return false; for(let r of state.rules) { if(!r || r.id === exId || r.tea !== tea || !r.days || !r.days[day]) continue; const rCls = state.classes.find(c => c.name === r.class); if(!rCls) continue; const rP = state.blueprints[rCls.tier] && state.blueprints[rCls.tier].find(x => x.id === r.periodId); if(!rP) continue; if(Number(p.s) < Number(rP.e) && Number(p.e) > Number(rP.s)) return true; } return false; }
+        function createDayStrip(rule) { const strip = document.createElement('div'); strip.className = 'day-strip'; strip.onclick = (e) => e.stopPropagation(); const allSelected = (rule.days||[]).every(d => d); strip.innerHTML += `<div class="day-toggle master ${allSelected?'selected':''}" onclick="toggleAllDays(event, '${rule.id}', ${allSelected})">1-6</div>`; ["M","T","W","T","F","S"].forEach((d, i) => { const isClash = checkClash(rule.tea, i, rule.class, rule.periodId, rule.id); strip.innerHTML += `<div class="day-toggle ${(rule.days||[])[i]?'selected':''} ${isClash?'clash':''}" onclick="toggleDay(event, '${rule.id}', ${i}, ${isClash})">${d}</div>`; }); return strip; }
+        
+        function toggleAllDays(e, rid, currentlyAll) { e.stopPropagation(); saveStateToHistory(); const r = state.rules.find(x => x.id === rid); if(!r) return; if (currentlyAll) { r.days = [false,false,false,false,false,false]; } else { for(let i=0; i<6; i++) { if(!checkClash(r.tea, i, r.class, r.periodId, r.id)) r.days[i] = true; } } localStorage.setItem('architect_matrix_state', JSON.stringify(state)); render(); }
+        
+        function checkClash(tea, day, clsName, pId, exId) { 
+            if(!tea || !state.classes || !state.blueprints || !state.rules) return false; 
+            const cls = state.classes.find(c => c.name === clsName); if(!cls) return false; 
+            const p = state.blueprints[cls.tier] && state.blueprints[cls.tier].find(x => x.id === pId); if(!p) return false; 
+            for(let r of state.rules) { 
+                if(!r || r.id === exId || r.tea !== tea || !r.days || !r.days[day]) continue; 
+                if(r.sub === 'CCA' && clsName !== r.class) continue;
+                const rDet = getRuleDetails(r);
+                if(!rDet) continue; 
+                if(Number(p.s) < Number(rDet.e) && Number(p.e) > Number(rDet.s)) return true; 
+            } 
+            return false; 
+        }
+
         function toggleStrip(e, id) { e.stopPropagation(); activeRuleId = (activeRuleId === id) ? null : id; render(); }
-        function toggleDay(e, rid, idx, clash) { e.stopPropagation(); if(clash) return; saveStateToHistory(); const r = state.rules.find(x => x.id === rid); if(r && r.days) r.days[idx] = !r.days[idx]; render(); }
+        function toggleDay(e, rid, idx, clash) { e.stopPropagation(); if(clash) return; saveStateToHistory(); const r = state.rules.find(x => x.id === rid); if(r && r.days) r.days[idx] = !r.days[idx]; localStorage.setItem('architect_matrix_state', JSON.stringify(state)); render(); }
         function closeAllStrips(e) { if(!e.target.closest('.day-strip') && !e.target.closest('.dz-day')) { activeRuleId = null; render(); } }
         function calculateWorkload() { let c = {sub:{}, tea:{}}; if(!state.rules) return c; state.rules.forEach(r => { if(!r) return; const n = (r.days||[]).filter(d=>d).length; if(r.sub) c.sub[r.sub] = (c.sub[r.sub]||0)+n; if(r.tea) c.tea[r.tea] = (c.tea[r.tea]||0)+n; }); return c; }
 
         function openPerModal(id = null, tier) { editingPer = { id, tier }; const p = id && state.blueprints[tier] ? state.blueprints[tier].find(x=>x.id===id) : {n:'', s:600, e:640, r:false}; document.getElementById('perTitle').innerText = id ? 'Edit Period' : 'Add Period'; document.getElementById('perName').value = p.n || ''; document.getElementById('perS').value = minToTime(p.s || 600); document.getElementById('perE').value = minToTime(p.e || 640); document.getElementById('perRecess').checked = p.r || false; document.getElementById('perModal').style.display = 'flex'; }
+        
         function savePeriod() { 
             const n = sanitize(document.getElementById('perName').value.toUpperCase().trim()); 
             const s = timeToMin(document.getElementById('perS').value); 
@@ -513,11 +634,15 @@
             saveStateToHistory(); 
             if(editingPer.id) { const p = tierList.find(x=>x.id===editingPer.id); if(p) Object.assign(p, {n, s, e, r}); } 
             else { tierList.push({id: generateId('p'), n, s, e, r}); } 
-            if(!state.blueprints[editingPer.tier]) state.blueprints[editingPer.tier] = tierList; closeModal('perModal'); render(); 
+            if(!state.blueprints[editingPer.tier]) state.blueprints[editingPer.tier] = tierList; 
+            localStorage.setItem('architect_matrix_state', JSON.stringify(state));
+            closeModal('perModal'); render(); 
         }
-        function deletePeriod(id, tier) { if(confirm("DANGER: Delete period? All assignments in this time slot for this tier will be permanently purged.")){ saveStateToHistory(); if(state.blueprints[tier]) state.blueprints[tier] = state.blueprints[tier].filter(x=>x.id !== id); if(state.rules) state.rules = state.rules.filter(r => r.periodId !== id); render(); showToast("Period and tied assignments purged.", "info"); } }
+        
+        function deletePeriod(id, tier) { if(confirm("DANGER: Delete period? All assignments in this time slot for this tier will be permanently purged.")){ saveStateToHistory(); if(state.blueprints[tier]) state.blueprints[tier] = state.blueprints[tier].filter(x=>x.id !== id); if(state.rules) state.rules = state.rules.filter(r => r.periodId !== id); localStorage.setItem('architect_matrix_state', JSON.stringify(state)); render(); showToast("Period and tied assignments purged.", "info"); } }
 
         function openClsModal(name = null, tier) { editingCls = { name, tier }; document.getElementById('clsTitle').innerText = name ? 'Edit Class' : 'Add Class to Tier'; document.getElementById('clsName').value = name || ''; document.getElementById('clsModal').style.display = 'flex'; }
+        
         function saveClass() { 
             const n = sanitize(document.getElementById('clsName').value.toUpperCase().trim()); 
             if(!n) return; 
@@ -528,21 +653,25 @@
                 if(state.classes.some(c=>c.name === n)) { showToast("Class already exists.", "error"); return; } 
                 saveStateToHistory(); state.classes.push({name: n, tier: editingCls.tier}); 
             } 
+            localStorage.setItem('architect_matrix_state', JSON.stringify(state));
             closeModal('clsModal'); render(); 
         }
-        function deleteClass(name) { if(confirm(`WARNING: Delete Class ${name}? All assignments for this class will be permanently lost.`)){ saveStateToHistory(); state.classes = state.classes.filter(x=>x.name !== name); state.rules = state.rules.filter(r=>r.class !== name); render(); showToast(`Class ${name} deleted.`, "info"); } }
+        
+        function deleteClass(name) { if(confirm(`WARNING: Delete Class ${name}? All assignments for this class will be permanently lost.`)){ saveStateToHistory(); state.classes = state.classes.filter(x=>x.name !== name); state.rules = state.rules.filter(r=>r.class !== name); localStorage.setItem('architect_matrix_state', JSON.stringify(state)); render(); showToast(`Class ${name} deleted.`, "info"); } }
 
         function openRegModal(type, idx = -1) { editingReg = { type, idx }; const list = type === 'sub' ? (state.registry.subjects||[]) : (state.registry.teachers||[]); const item = idx === -1 ? {s:'', f:'', d:''} : list[idx]; if(!item) return; document.getElementById('modalTitle').innerText = idx === -1 ? `Add ${type === 'sub' ? 'Subject' : 'Teacher'}` : `Edit Entry`; document.getElementById('modalShort').value = item.s || ''; document.getElementById('modalFull').value = item.f || ''; document.getElementById('modalDesig').value = item.d || ''; document.getElementById('regModal').style.display = 'flex'; document.getElementById('modalDesig').style.display = type === 'tea' ? 'block' : 'none'; }
+        
         function saveRegistry() { 
             const s = sanitize(document.getElementById('modalShort').value.toUpperCase().trim()), f = sanitize(document.getElementById('modalFull').value.trim()), d = sanitize(document.getElementById('modalDesig').value.trim()); 
             if(!s) return; const list = editingReg.type==='sub' ? state.registry.subjects : state.registry.teachers; 
             if(editingReg.idx === -1 && list.some(x => x.s === s)) { showToast(`Code '${s}' already exists.`, "error"); return; } 
-            saveStateToHistory(); const entry = {s, f, d}; 
+            saveStateToHistory(); const entry = editingReg.type === 'sub' ? { f, s } : { s, f, d }; 
             if(editingReg.idx===-1) list.push(entry); 
             else { 
                 const old = list[editingReg.idx].s; list[editingReg.idx] = entry; 
                 state.rules.forEach(r => { if(!r) return; if(editingReg.type==='sub' && r.sub===old) r.sub=s; if(editingReg.type==='tea' && r.tea===old) r.tea=s; }); 
             } 
+            localStorage.setItem('architect_matrix_state', JSON.stringify(state));
             closeModal('regModal'); render(); 
         }
         
@@ -555,7 +684,7 @@
                     adjustState.absent = adjustState.absent.filter(x => x !== item.s);
                     Object.keys(adjustState.covers).forEach(k => { if(adjustState.covers[k] === item.s) delete adjustState.covers[k]; });
                 }
-                list.splice(idx, 1); render(); showToast(`${item.s} deleted.`, "info"); 
+                list.splice(idx, 1); localStorage.setItem('architect_matrix_state', JSON.stringify(state)); render(); showToast(`${item.s} deleted.`, "info"); 
             } 
         }
         
@@ -570,6 +699,9 @@
                     if(!validateState(parsed)) throw new Error("Invalid schema structure.");
                     saveStateToHistory(); 
                     state = parsed; 
+                    if (!state.blueprints.junior) state.blueprints.junior = [];
+                    if (!state.blueprints.senior) state.blueprints.senior = [];
+                    localStorage.setItem('architect_matrix_state', JSON.stringify(state));
                     render(); showToast("Data loaded successfully.", "success"); 
                 } catch (err) { showToast("Load Failed: " + err.message, "error"); } 
                 e.target.value = ''; 
@@ -600,17 +732,10 @@
             state.registry.teachers.forEach(t => {
                 const isAbs = adjustState.absent.includes(t.s);
                 const card = document.createElement('div'); card.className = `absent-card ${isAbs ? 'is-absent' : ''}`;
-                card.innerHTML = `<div class="font-black text-base mb-1">${t.f}</div><div class="text-[10px] font-bold opacity-60 uppercase tracking-wide">[${t.d || 'No Desig'}]</div>`;
+                card.innerHTML = `<div class="font-black text-base mb-1">${sanitize(t.f)}</div><div class="text-[10px] font-bold opacity-60 uppercase tracking-wide">[${sanitize(t.d) || 'No Desig'}]</div>`;
                 card.onclick = () => { if(isAbs) adjustState.absent = adjustState.absent.filter(x => x !== t.s); else adjustState.absent.push(t.s); renderAdjTeachers(); };
                 grid.appendChild(card);
             });
-        }
-
-        function getRuleDetails(r) { 
-            if(!r) return null;
-            const cls = state.classes.find(c => c.name === r.class); if(!cls) return null; 
-            const p = state.blueprints[cls.tier] && state.blueprints[cls.tier].find(x => x.id === r.periodId); if(!p) return null; 
-            return { clsTier: cls.tier, pName: p.n, s: Number(p.s), e: Number(p.e) }; 
         }
 
         function isOverlapping(s1, e1, s2, e2) { return (Number(s1) < Number(e2) && Number(e1) > Number(s2)); }
@@ -621,14 +746,24 @@
             const list = document.getElementById('adjPeriodsList'); list.innerHTML = '';
             const subsPanel = document.getElementById('adjSubsList'); subsPanel.innerHTML = '';
             let affected = [];
-            state.rules.forEach(r => { if(r.days[adjustState.dayIndex] && adjustState.absent.includes(r.tea)) { const det = getRuleDetails(r); if(det) affected.push({ ruleId: r.id, class: r.class, sub: r.sub, tea: r.tea, ...det }); } });
+            state.rules.forEach(r => { 
+                const isMasterAbsent = adjustState.absent.includes(r.tea);
+                const assignedCover = adjustState.covers[r.id];
+                const isCoverAbsent = assignedCover && adjustState.absent.includes(assignedCover);
+                
+                if(r.days[adjustState.dayIndex] && (isMasterAbsent || isCoverAbsent)) { 
+                    if (isCoverAbsent) delete adjustState.covers[r.id];
+                    const det = getRuleDetails(r); 
+                    if(det) affected.push({ ruleId: r.id, class: r.class, sub: r.sub, tea: r.tea, ...det }); 
+                } 
+            });
             affected.sort((a,b) => a.s - b.s); 
             if(affected.length === 0) { list.innerHTML = '<div class="text-slate-400 font-black p-4 text-center">No periods affected.</div>'; return; }
 
             affected.forEach(aff => {
                 const isCovered = adjustState.covers[aff.ruleId];
                 const box = document.createElement('div'); box.className = "flex items-center justify-between p-3 border-2 border-slate-200 rounded-xl bg-white";
-                box.innerHTML = `<div class="flex-1"><div class="text-sm font-black text-slate-800 mb-1"><span class="text-indigo-600">${aff.class}</span> - ${aff.pName} <span class="text-[10px] font-bold text-slate-400 font-mono">(${formatTime(aff.s)} - ${formatTime(aff.e)})</span></div><div class="text-xs font-bold text-slate-500 uppercase tracking-tight">${getFullSub(aff.sub)} <span class="opacity-50">(Abs: ${getFullTea(aff.tea)})</span></div></div>`;
+                box.innerHTML = `<div class="flex-1"><div class="text-sm font-black text-slate-800 mb-1"><span class="text-indigo-600">${sanitize(aff.class)}</span> - ${sanitize(aff.pName)} <span class="text-[10px] font-bold text-slate-400 font-mono">(${formatTime(aff.s)} - ${formatTime(aff.e)})</span></div><div class="text-xs font-bold text-slate-500 uppercase tracking-tight">${getFullSub(aff.sub)} <span class="opacity-50">(Abs: ${getFullTea(aff.tea)})</span></div></div>`;
                 if(isCovered) {
                     const btn = document.createElement('div'); btn.className = "adj-filled rounded-lg h-12 flex items-center justify-between font-black text-sm shadow-sm transition min-w-[220px]";
                     btn.innerHTML = `<span>${getFullTea(isCovered)} <span class="text-[10px] opacity-60 ml-1 uppercase">(Sub)</span></span> <button onclick="removeCover('${aff.ruleId}')" class="text-white hover:text-rose-200 ml-3 text-lg leading-none">&times;</button>`;
@@ -649,8 +784,17 @@
                     adjustState.draggedSub = t.s; 
                     if(e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', t.s); }
                 };
-                pill.innerHTML = `<div><span class="font-black text-xs text-slate-800">${t.f}</span> <span class="text-[9px] text-slate-400 font-bold uppercase block mt-0.5">[${t.d || 'Teacher'}]</span></div> <div class="bg-slate-100 border border-slate-200 text-slate-500 font-black text-[9px] px-2 py-1 rounded">Load: ${getLiveTeacherLoad(t.s)}</div>`;
+                pill.innerHTML = `<div><span class="font-black text-xs text-slate-800">${sanitize(t.f)}</span> <span class="text-[9px] text-slate-400 font-bold uppercase block mt-0.5">[${sanitize(t.d) || 'Teacher'}]</span></div> <div class="bg-slate-100 border border-slate-200 text-slate-500 font-black text-[9px] px-2 py-1 rounded">Load: ${getLiveTeacherLoad(t.s)}</div>`;
                 subsPanel.appendChild(pill);
+            });
+            localStorage.setItem(`architect_covers_${adjustState.dateStr}`, JSON.stringify(adjustState.covers));
+        }
+
+        function checkAbsoluteTimeClash(teaCode, startMin, endMin, dayIdx) {
+            return state.rules.some(r => {
+                if (r.tea !== teaCode || !r.days[dayIdx]) return false;
+                const det = getRuleDetails(r);
+                return det && (startMin < det.e && endMin > det.s);
             });
         }
 
@@ -658,9 +802,10 @@
             if(!teaCode) return; 
             const targetRule = state.rules.find(r => r.id === ruleId); if (!targetRule) return;
             const tDet = getRuleDetails(targetRule); if (!tDet) return;
-            let isBusy = false;
-            state.rules.forEach(r => { if(r.tea === teaCode && r.days[adjustState.dayIndex]) { const d = getRuleDetails(r); if(d && isOverlapping(tDet.s, tDet.e, d.s, d.e)) isBusy = true; } });
+            
+            let isBusy = checkAbsoluteTimeClash(teaCode, tDet.s, tDet.e, adjustState.dayIndex);
             Object.entries(adjustState.covers).forEach(([rId, sCode]) => { if(sCode === teaCode) { const d = getRuleDetails(state.rules.find(x => x.id === rId)); if(d && isOverlapping(tDet.s, tDet.e, d.s, d.e)) isBusy = true; } });
+            
             if(isBusy) { showToast(`⚠️ ${getFullTea(teaCode)} is engaged!`, "error"); return; }
             adjustState.covers[ruleId] = teaCode; renderAdjBoard();
         }
@@ -669,14 +814,21 @@
 
         function autoAdjust() {
             let affected = [];
-            state.rules.forEach(r => { if(r.days[adjustState.dayIndex] && adjustState.absent.includes(r.tea)) { const det = getRuleDetails(r); if(det) affected.push({ ruleId: r.id, ...det }); } });
+            state.rules.forEach(r => { 
+                const isMasterAbsent = adjustState.absent.includes(r.tea);
+                const assignedCover = adjustState.covers[r.id];
+                const isCoverAbsent = assignedCover && adjustState.absent.includes(assignedCover);
+                if(r.days[adjustState.dayIndex] && (isMasterAbsent || isCoverAbsent)) { 
+                    const det = getRuleDetails(r); if(det) affected.push({ ruleId: r.id, ...det }); 
+                } 
+            });
             affected.sort((a,b) => a.s - b.s); let assignmentsMade = 0;
             
             affected.forEach(aff => {
                 if(adjustState.covers[aff.ruleId]) return; 
                 let available = state.registry.teachers.filter(t => {
                     if(adjustState.absent.includes(t.s)) return false;
-                    let isBusyMaster = state.rules.some(r => { if (r.tea === t.s && r.days[adjustState.dayIndex]) { const d = getRuleDetails(r); return d && isOverlapping(aff.s, aff.e, d.s, d.e); } return false; });
+                    let isBusyMaster = checkAbsoluteTimeClash(t.s, aff.s, aff.e, adjustState.dayIndex);
                     if (isBusyMaster) return false;
                     let isBusyCover = Object.entries(adjustState.covers).some(([rId, subCode]) => { if (subCode !== t.s) return false; const cr = state.rules.find(x => x.id === rId); if (!cr) return false; const d = getRuleDetails(cr); return d && isOverlapping(aff.s, aff.e, d.s, d.e); });
                     return !isBusyCover;
@@ -710,10 +862,10 @@
                 const subObj = adjustState.covers[aff.id] ? state.registry.teachers.find(t=>t.s === adjustState.covers[aff.id]) : null;
                 const absObj = state.registry.teachers.find(t=>t.s === aff.tea);
                 rowsHtml += `<tr>
-                    <td>${subObj ? `<b>${subObj.f}</b><span class="print-sub-text">${subObj.d||''}</span>` : `<span style="color:#ef4444;">UNASSIGNED</span>`}</td>
-                    <td><b>${aff.pName}</b><span class="print-sub-text">${formatTime(aff.s)} - ${formatTime(aff.e)}</span></td>
-                    <td>${aff.class}</td><td>${getFullSub(aff.sub)}</td>
-                    <td>${absObj ? `<b>${absObj.f}</b><span class="print-sub-text">${absObj.d||''}</span>` : getFullTea(aff.tea)}</td>
+                    <td>${subObj ? `<b>${sanitize(subObj.f)}</b><span class="print-sub-text">${sanitize(subObj.d)||''}</span>` : `<span style="color:#ef4444;">UNASSIGNED</span>`}</td>
+                    <td><b>${sanitize(aff.pName)}</b><span class="print-sub-text">${formatTime(aff.s)} - ${formatTime(aff.e)}</span></td>
+                    <td>${sanitize(aff.class)}</td><td>${getFullSub(aff.sub)}</td>
+                    <td>${absObj ? `<b>${sanitize(absObj.f)}</b><span class="print-sub-text">${sanitize(absObj.d)||''}</span>` : getFullTea(aff.tea)}</td>
                     <td><div class="print-sig"></div></td></tr>`;
             });
             layout.innerHTML = `<div class="print-header">Daily Substitution Sheet</div><div class="print-meta"><div>DATE: <span style="font-weight:400;">${dateStrClean}</span></div><div>ABSENT TEACHERS: <span style="color:#ef4444;font-weight:400;">${adjustState.absent.map(s => getFullTea(s)).join(', ')}</span></div></div><table class="print-table"><thead><tr><th>Substitute</th><th>Period & Time</th><th>Class</th><th>Subject</th><th>Absent</th><th>Signature</th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
@@ -733,8 +885,8 @@
             } else {
                 target.disabled = false;
                 target.innerHTML = '<option value="ALL">All (Batch Print)</option>';
-                if(type === 'class') state.classes.forEach(c => target.innerHTML += `<option value="${c.name}">${c.name}</option>`);
-                else state.registry.teachers.forEach(t => target.innerHTML += `<option value="${t.s}">${t.f} (${t.s})</option>`);
+                if(type === 'class') state.classes.forEach(c => target.innerHTML += `<option value="${sanitize(c.name)}">${sanitize(c.name)}</option>`);
+                else state.registry.teachers.forEach(t => target.innerHTML += `<option value="${sanitize(t.s)}">${sanitize(t.f)} (${sanitize(t.s)})</option>`);
             }
         }
 
@@ -756,45 +908,55 @@
         }
 
         function generateClassReports(target, container) {
-            let classesToPrint = target === 'ALL' ? state.classes : state.classes.filter(c => c.name === target);
-            classesToPrint.forEach((cls) => {
-                const bp = (state.blueprints[cls.tier] || []).slice().sort((a,b)=>a.s - b.s);
-                let usedSubs = new Set(), usedTeas = new Set();
-                
-                let html = `<div class="page-break">`;
-                html += `<div style="text-align:center; margin-bottom:15px;"><h1 style="font-size:24px; font-weight:900; margin:0; text-transform:uppercase;">GSSS KHALYANI</h1><h2 style="font-size:14px; font-weight:700; margin:5px 0 0 0; color:#475569; text-transform:uppercase;">CLASS-WISE TIMETABLE: ${cls.name}</h2></div>`;
-                html += `<table class="report-table"><thead><tr><th>DAY</th>`;
-                bp.forEach(p => { html += `<th>${p.n}<br><span style="font-size:8px;font-weight:normal;">${formatTime(p.s)} - ${formatTime(p.e)}</span></th>`; });
-                html += `</tr></thead><tbody>`;
-                
-                for(let d=0; d<6; d++) {
-                    html += `<tr><td><b>${DAY_NAMES[d].substring(0,3).toUpperCase()}</b></td>`;
-                    bp.forEach(p => {
-                        if(p.r) {
-                            if(d === 0) html += `<td rowspan="6" class="recess-col">RECESS</td>`;
-                        } else {
-                            let rule = state.rules.find(r => r.class === cls.name && r.periodId === p.id && r.days[d]);
-                            if(rule) {
-                                if(rule.sub) usedSubs.add(rule.sub); if(rule.tea) usedTeas.add(rule.tea);
-                                html += `<td><b style="font-size:12px;">${rule.sub||'-'}</b><br><span style="font-size:9px;color:#475569;">${rule.tea||'-'}</span></td>`;
-                            } else {
-                                html += `<td style="color:#94a3b8;font-size:10px;">- FREE -</td>`;
-                            }
-                        }
-                    });
-                    html += `</tr>`;
+    let classesToPrint = target === 'ALL' ? state.classes : state.classes.filter(c => c.name === target);
+    classesToPrint.forEach((cls) => {
+        const bp = (state.blueprints[cls.tier] || []).slice().sort((a,b)=>a.s - b.s);
+        let usedSubs = new Set(), usedTeas = new Set();
+        
+        let html = `<div class="page-break">`;
+        html += `<div style="text-align:center; margin-bottom:15px;"><h1 style="font-size:24px; font-weight:900; margin:0; text-transform:uppercase;">GSSS KHALYANI</h1><h2 style="font-size:14px; font-weight:700; margin:5px 0 0 0; color:#475569; text-transform:uppercase;">CLASS-WISE TIMETABLE: ${sanitize(cls.name)}</h2></div>`;
+        html += `<table class="report-table"><thead><tr><th>DAY</th>`;
+        bp.forEach(p => { html += `<th>${sanitize(p.n)}<br><span style="font-size:8px;font-weight:normal;">${formatTime(p.s)} - ${formatTime(p.e)}</span></th>`; });
+        html += `</tr></thead><tbody>`;
+        
+        for(let d=0; d<6; d++) {
+            html += `<tr><td><b>${DAY_NAMES[d].substring(0,3).toUpperCase()}</b></td>`;
+            bp.forEach(p => {
+                if(p.r) {
+                    if(d === 0) html += `<td rowspan="6" class="recess-col">RECESS</td>`;
+                } else {
+                    // RESOLUTION: Filter for all rules active for this day block to handle split periods
+                    let matchingRules = state.rules.filter(r => r.class === cls.name && r.periodId === p.id && r.days[d]);
+                    if(matchingRules.length > 0) {
+                        html += `<td><div style="display:flex; gap:6px; justify-content:center; align-items:center; min-height:36px;">`;
+                        matchingRules.forEach((rule, idx) => {
+                            if(rule.sub) usedSubs.add(rule.sub); 
+                            if(rule.tea) usedTeas.add(rule.tea);
+                            let borderStyle = idx < matchingRules.length - 1 ? 'border-right:1px dashed #cbd5e1; padding-right:6px;' : '';
+                            html += `<div style="${borderStyle} flex:1; min-width:0; text-align:center;">
+                                <b style="font-size:12px; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${sanitize(rule.sub)||'-'}</b>
+                                <span style="font-size:9px; color:#475569; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${sanitize(rule.tea)||'-'}</span>
+                            </div>`;
+                        });
+                        html += `</div></td>`;
+                    } else {
+                        html += `<td style="color:#94a3b8;font-size:10px;">- FREE -</td>`;
+                    }
                 }
-                html += `</tbody></table>`;
-                
-                let subLeg = Array.from(usedSubs).map(s => `<b>${s}</b>: ${getFullSub(s)}`).join(' | ');
-                let teaLeg = Array.from(usedTeas).map(t => `<b>${t}</b>: ${getFullTea(t)}`).join(' | ');
-                html += `<div style="margin-top:10px; font-size:9px; border-top:1px solid #000; padding-top:4px; text-align:center;">`;
-                if(subLeg) html += `[SUBJECTS] ${subLeg} &nbsp;&nbsp;||&nbsp;&nbsp; `;
-                if(teaLeg) html += `[TEACHERS] ${teaLeg}`;
-                html += `</div></div>`;
-                container.innerHTML += html;
             });
+            html += `</tr>`;
         }
+        html += `</tbody></table>`;
+        
+        let subLeg = Array.from(usedSubs).map(s => `<b>${sanitize(s)}</b>: ${getFullSub(s)}`).join(' | ');
+        let teaLeg = Array.from(usedTeas).map(t => `<b>${sanitize(t)}</b>: ${getFullTea(t)}`).join(' | ');
+        html += `<div style="margin-top:10px; font-size:9px; border-top:1px solid #000; padding-top:4px; text-align:center;">`;
+        if(subLeg) html += `[SUBJECTS] ${subLeg} &nbsp;&nbsp;||&nbsp;&nbsp; `;
+        if(teaLeg) html += `[TEACHERS] ${teaLeg}`;
+        html += `</div></div>`;
+        container.innerHTML += html;
+    });
+}
 
         function generateTeacherReports(target, container) {
             let teachersToPrint = target === 'ALL' ? state.registry.teachers : state.registry.teachers.filter(t => t.s === target);
@@ -811,7 +973,7 @@
                     const det = getRuleDetails(r); if(!det) return;
                     r.days.forEach((isActive, d) => {
                         if(isActive) {
-                            schedByDay[d].push({...r, ...det});
+                            schedByDay[d].push({...JSON.parse(JSON.stringify(r)), ...det});
                             totalPeriods++; classCounts[r.class] = (classCounts[r.class] || 0) + 1; subCounts[r.sub] = (subCounts[r.sub] || 0) + 1;
                             if(r.sub) usedSubs.add(r.sub);
                         }
@@ -821,11 +983,11 @@
                 let maxSlots = 1;
                 schedByDay.forEach(arr => { arr.sort((a,b) => a.s - b.s); if(arr.length > maxSlots) maxSlots = arr.length; });
                 
-                let clsMeta = Object.entries(classCounts).map(([k,v]) => `${k}(${v})`).join(', ');
-                let subMeta = Object.entries(subCounts).map(([k,v]) => `${k}(${v})`).join(', ');
+                let clsMeta = Object.entries(classCounts).map(([k,v]) => `${sanitize(k)}(${v})`).join(', ');
+                let subMeta = Object.entries(subCounts).map(([k,v]) => `${sanitize(k)}(${v})`).join(', ');
 
                 let html = `<div class="page-break">`;
-                html += `<div style="text-align:center; margin-bottom:10px;"><h1 style="font-size:24px; font-weight:900; margin:0; text-transform:uppercase;">GSSS KHALYANI</h1><h2 style="font-size:14px; font-weight:700; margin:5px 0 0 0; color:#475569; text-transform:uppercase;">TEACHER-WISE TIMETABLE: ${tea.f} (${tea.d||'Teacher'})</h2></div>`;
+                html += `<div style="text-align:center; margin-bottom:10px;"><h1 style="font-size:24px; font-weight:900; margin:0; text-transform:uppercase;">GSSS KHALYANI</h1><h2 style="font-size:14px; font-weight:700; margin:5px 0 0 0; color:#475569; text-transform:uppercase;">TEACHER-WISE TIMETABLE: ${sanitize(tea.f)} (${sanitize(tea.d)||'Teacher'})</h2></div>`;
                 html += `<div style="text-align:center; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:6px; font-size:10px; font-weight:700; margin-bottom:10px;">TOTAL PERIODS: ${totalPeriods} &nbsp;|&nbsp; CLASSES: ${clsMeta||'None'} &nbsp;|&nbsp; SUBJECTS: ${subMeta||'None'}</div>`;
                 html += `<table class="report-table"><thead><tr><th>DAY</th>`;
                 for(let i=1; i<=maxSlots; i++) html += `<th>Slot ${i}</th>`;
@@ -837,7 +999,7 @@
                     for(let i=0; i<maxSlots; i++) {
                         if(i < dayArr.length) {
                             let slot = dayArr[i];
-                            html += `<td><b style="font-size:12px;">${slot.class}</b><br><span style="font-size:10px;color:#334155;font-weight:bold;">${slot.sub||'-'}</span><br><span style="font-size:8px;color:#64748b;">${formatTime(slot.s)} - ${formatTime(slot.e)}</span></td>`;
+                            html += `<td><b style="font-size:12px;">${sanitize(slot.class)}</b><br><span style="font-size:10px;color:#334155;font-weight:bold;">${sanitize(slot.sub)||'-'}</span><br><span style="font-size:8px;color:#64748b;">${formatTime(slot.s)} - ${formatTime(slot.e)}</span></td>`;
                         } else {
                             html += `<td style="color:#94a3b8;font-size:10px;">- FREE -</td>`;
                         }
@@ -846,7 +1008,7 @@
                 }
                 html += `</tbody></table>`;
                 
-                let subLeg = Array.from(usedSubs).map(s => `<b>${s}</b>: ${getFullSub(s)}`).join(' | ');
+                let subLeg = Array.from(usedSubs).map(s => `<b>${sanitize(s)}</b>: ${getFullSub(s)}`).join(' | ');
                 html += `<div style="margin-top:10px; font-size:9px; border-top:1px solid #000; padding-top:4px; text-align:center;">`;
                 if(subLeg) html += `[SUBJECTS] ${subLeg}`;
                 html += `</div></div>`;
@@ -880,8 +1042,8 @@
 
             let usedSubs = new Set(), usedTeas = new Set();
             state.rules.forEach(r => { if(r.sub) usedSubs.add(r.sub); if(r.tea) usedTeas.add(r.tea); });
-            let subLeg = Array.from(usedSubs).map(s => `<b>${s}</b>: ${getFullSub(s)}`).join(' | ');
-            let teaLeg = Array.from(usedTeas).map(t => `<b>${t}</b>: ${getFullTea(t)}`).join(' | ');
+            let subLeg = Array.from(usedSubs).map(s => `<b>${sanitize(s)}</b>: ${getFullSub(s)}`).join(' | ');
+            let teaLeg = Array.from(usedTeas).map(t => `<b>${sanitize(t)}</b>: ${getFullTea(t)}`).join(' | ');
             html += `<div style="margin-top:5px; font-size:8px; border-top:1px solid #000; padding-top:2px; text-align:center; line-height:1.2;">`;
             if(subLeg) html += `[SUBJECTS] ${subLeg} &nbsp;&nbsp;||&nbsp;&nbsp; `;
             if(teaLeg) html += `[TEACHERS] ${teaLeg}`;
@@ -891,35 +1053,40 @@
         }
 
         function renderMatrixHeader(tier, S, T) {
-            let html = `<div class="matrix-row matrix-header-row"><div class="matrix-label">${(tier||'').toUpperCase()} TIER</div><div class="matrix-timeline">`;
             let bp = state.blueprints[tier] || [];
+            if (bp.length === 0) return `<div class="matrix-row matrix-header-row"><div class="matrix-label">${(tier||'').toUpperCase()} TIER</div><div class="matrix-timeline"></div></div>`;
+            
+            let html = `<div class="matrix-row matrix-header-row"><div class="matrix-label">${(tier||'').toUpperCase()} TIER</div><div class="matrix-timeline">`;
             bp.forEach(p => {
                 let leftP = ((Number(p.s) - S) / T) * 100; let widthP = ((Number(p.e) - Number(p.s)) / T) * 100;
-                html += `<div class="matrix-block matrix-header-block" style="left:${leftP}%; width:${widthP}%;"><b>${p.n}</b><span style="font-size:7px;font-weight:normal;">${formatTime(p.s)} - ${formatTime(p.e)}</span></div>`;
+                html += `<div class="matrix-block matrix-header-block" style="left:${leftP}%; width:${widthP}%;"><b>${sanitize(p.n)}</b><span style="font-size:7px;font-weight:normal;">${formatTime(p.s)} - ${formatTime(p.e)}</span></div>`;
             });
             html += `</div></div>`; return html;
         }
 
         function renderMatrixRow(cls, S, T) {
-            let html = `<div class="matrix-row"><div class="matrix-label" style="background:#fff !important; font-size:12px;">${cls.name}</div><div class="matrix-timeline">`;
+            let html = `<div class="matrix-row"><div class="matrix-label" style="background:#fff !important; font-size:12px;">${sanitize(cls.name)}</div><div class="matrix-timeline">`;
             let bp = state.blueprints[cls.tier] || [];
             bp.forEach(p => {
                 let leftP = ((Number(p.s) - S) / T) * 100; let widthP = ((Number(p.e) - Number(p.s)) / T) * 100;
                 if (p.r) {
                     html += `<div class="matrix-block recess" style="left:${leftP}%; width:${widthP}%;">RECESS</div>`;
                 } else {
-                    html += `<div class="matrix-block" style="left:${leftP}%; width:${widthP}%;">`;
+                    html += `<div class="matrix-block bg-white" style="left:${leftP}%; width:${widthP}%; display: flex; border-left: 1px solid #000;">`;
                     let rulesForPeriod = state.rules.filter(r => r.class === cls.name && r.periodId === p.id && r.days.some(d=>d));
                     let splits = [];
                     rulesForPeriod.forEach(r => { if(!r.sub && !r.tea) return; splits.push({ sub: r.sub, tea: r.tea, days: getDayLabel(r.days) }); });
+                    
                     if (splits.length > 0) {
                         splits.forEach((sp, idx) => {
                             let br = idx < splits.length - 1 ? 'border-right: 1px dashed #000;' : '';
                             html += `<div style="flex:1; ${br} display:flex; flex-direction:column; align-items:center; justify-content:center; overflow:hidden; padding:1px;">
-                                <b style="font-size:11px; line-height:1;">${sp.sub||'-'}</b>
-                                <span style="font-size:9px; color:#333; line-height:1.1; font-weight:bold;">${sp.tea||'-'}</span>
+                                <b style="font-size:11px; line-height:1;">${sanitize(sp.sub)||'-'}</b>
+                                <span style="font-size:9px; color:#333; line-height:1.1; font-weight:bold;">${sanitize(sp.tea)||'-'}</span>
                                 <span style="font-size:7px; color:#555; line-height:1;">(${sp.days})</span></div>`;
                         });
+                    } else {
+                        html += `<div class="w-full h-full flex items-center justify-center text-[9px] text-slate-300 font-bold">-</div>`;
                     }
                     html += `</div>`;
                 }
