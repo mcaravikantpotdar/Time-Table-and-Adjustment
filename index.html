@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Academic Architect v7.90 Phase 13 (Stabilized Core)</title>
+    <title>Academic Architect v7.95 Phase 13 (Stabilized Core)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
@@ -34,12 +34,13 @@
         .hover-actions { opacity: 0; position: absolute; right: 4px; display: flex; gap: 2px; transition: 0.15s; background: rgba(255,255,255,0.9); padding: 2px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); pointer-events: none; }
         .label-box:hover .hover-actions, .p-block:hover .hover-actions { opacity: 1; pointer-events: auto; }
 
-        .p-block { display: flex; flex-direction: column; align-items: center; justify-content: center; border-right: 2px solid #334155; text-align: center; height: 100%; flex-shrink: 0; position: relative; }
+        .p-block { display: flex; flex-direction: column; align-items: center; justify-content: center; border-right: 2px solid #334155; text-align: center; height: 100%; flex-shrink: 0; position: relative; transition: width 0.2s; }
         .p-block span { font-size: 8px; font-weight: 400; opacity: 0.8; margin-top: 2px; }
-        .time-slot { display: flex; border-right: 2px solid #000; position: relative; height: 125px; flex-shrink: 0; padding-right: 22px; }
+        .time-slot { display: flex; border-right: 2px solid #000; position: relative; height: 125px; flex-shrink: 0; padding-right: 22px; transition: width 0.2s; }
         .recess-block { background: #be123c; color: white; writing-mode: vertical-rl; text-orientation: mixed; font-size: 11px; display: flex; align-items: center; justify-content: center; font-weight: 900; border-right: 2px solid #000; flex-shrink: 0; }
 
-        .vertical-col { height: 100%; flex: 1; display: flex; flex-direction: column; border-right: 1px dashed #cbd5e1; min-width: 44px; padding: 3px; position: relative; gap: 3px; transition: 0.2s border; }
+        /* Dynamic Split-Period Columns */
+        .vertical-col { height: 100%; flex: 1; display: flex; flex-direction: column; border-right: 1px dashed #cbd5e1; min-width: 38px; padding: 2px; position: relative; gap: 2px; transition: 0.2s border; }
         .vertical-col:last-child { border-right: none; }
         .vertical-col.active { outline: 3px solid #6366f1; z-index: 100; border-radius: 6px; background: #f8fafc; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.2); }
 
@@ -55,21 +56,21 @@
         .toast-success { background: #10b981; border: 1px solid #047857; }
         .toast-info { background: #1e293b; border: 1px solid #0f172a; }
 
-        .drop-zone { width: 100%; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-weight: 900; cursor: pointer; border: 1.5px solid transparent; overflow: hidden; height: 32px; transition: 0.1s; text-align: center; padding: 1px; line-height: 1.1; }
-        .dz-sub { background: #eff6ff; color: #1e40af; border-color: #bfdbfe; font-size: clamp(8px, 0.8vw, 11px); }
+        .drop-zone { width: 100%; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-weight: 900; cursor: pointer; border: 1.5px solid transparent; overflow: hidden; height: 32px; transition: 0.1s; text-align: center; padding: 1px; line-height: 1; letter-spacing: -0.3px; }
+        .dz-sub { background: #eff6ff; color: #1e40af; border-color: #bfdbfe; font-size: clamp(9px, 0.8vw, 12px); }
         .dz-sub.has-val { background: #2563eb !important; color: white !important; border-color: #1e40af; }
-        .dz-tea { background: #ecfdf5; color: #065f46; border-color: #bbf7d0; font-size: clamp(8px, 0.8vw, 10px); }
+        .dz-tea { background: #ecfdf5; color: #065f46; border-color: #bbf7d0; font-size: clamp(8px, 0.8vw, 11px); }
         .dz-tea.has-val { background: #059669 !important; color: white !important; border-color: #047857; }
         .dz-day { background: #fffbeb; color: #92400e; border-color: #fde68a; font-size: clamp(7px, 0.7vw, 9px); }
         .dz-day.has-val { background: #f59e0b !important; color: white !important; border-color: #d97706; }
-        .placeholder-text { opacity: 0.4; font-size: 8px; letter-spacing: 0.5px; }
+        .placeholder-text { opacity: 0.4; font-size: 8px; letter-spacing: 0.5px; line-height: 1; }
 
         .day-strip { position: absolute; bottom: 0; left: 0; width: 100%; min-width: 130px; background: #0f172a; display: flex; justify-content: space-around; padding: 4px; z-index: 500; border-radius: 6px 6px 0 0; }
         .day-toggle { color: white; font-size: 9px; font-weight: 900; cursor: pointer; padding: 2px 4px; border-radius: 3px; border: 1px solid #334155; }
         .day-toggle.selected { background: #2563eb; border-color: #60a5fa; }
         .day-toggle.clash { opacity: 0.2; filter: grayscale(1); cursor: not-allowed; }
         .day-toggle.master { background: #4f46e5; border-color: #818cf8; }
-        .add-split { position: absolute; right: 0; top: 0; bottom: 0; width: 20px; display: flex; align-items: center; justify-content: center; font-weight: 900; color: #cbd5e1; cursor: cell; transition: 0.2s; z-index: 10; }
+        .add-split { position: absolute; right: 0; top: 0; bottom: 0; width: 22px; display: flex; align-items: center; justify-content: center; font-weight: 900; color: #cbd5e1; cursor: cell; transition: 0.2s; z-index: 10; }
         .add-split:hover { background: #f0f9ff; color: #3b82f6; }
         
         .pill { padding: 8px 10px; background: white; border: 2px solid #cbd5e1; border-radius: 8px; font-weight: 900; cursor: grab; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 11px; }
@@ -136,7 +137,7 @@
             <div class="h-10 w-10 bg-black rounded-lg flex items-center justify-center text-white font-black text-xl shadow-lg">LA</div>
             <div>
                 <h1 class="text-xl font-black text-slate-800 uppercase tracking-tighter">Academic Architect</h1>
-                <p class="text-[10px] font-black text-indigo-600 tracking-widest uppercase">Version 7.90 (Phase 13) - Stabilized Core</p>
+                <p class="text-[10px] font-black text-indigo-600 tracking-widest uppercase">Version 7.95 (Phase 13) - Stabilized Core</p>
             </div>
         </div>
         <div class="flex items-center gap-3">
@@ -238,17 +239,14 @@
     <div id="reportModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-[40000] backdrop-blur-sm">
         <div class="bg-white p-8 rounded-2xl shadow-2xl w-96 border-2 border-slate-200">
             <h2 class="font-black uppercase text-xl mb-6 border-b-2 border-slate-100 pb-3 text-slate-800">Generate Report</h2>
-            
             <label class="block text-[10px] font-black uppercase text-slate-500 mb-1">REPORT TYPE</label>
             <select id="repType" class="w-full border-2 border-slate-300 p-3 rounded-xl mb-5 font-bold text-sm outline-none focus:border-blue-500" onchange="updateReportTargets()">
                 <option value="class">Class-Wise Timetable</option>
                 <option value="teacher">Teacher-Wise Timetable</option>
                 <option value="matrix">Master Matrix (Proportional)</option>
             </select>
-
             <label class="block text-[10px] font-black uppercase text-slate-500 mb-1">SELECT TARGET</label>
             <select id="repTarget" class="w-full border-2 border-slate-300 p-3 rounded-xl mb-8 font-bold text-sm outline-none focus:border-blue-500"></select>
-
             <div class="flex gap-3">
                 <button onclick="executePrintReport()" class="flex-1 bg-emerald-600 text-white p-3 rounded-xl font-black text-sm shadow-md hover:bg-emerald-700 transition">GENERATE PDF</button>
                 <button onclick="closeReportModal()" class="flex-1 bg-slate-100 text-slate-600 p-3 rounded-xl font-black text-sm hover:bg-slate-200 transition">CANCEL</button>
@@ -464,6 +462,25 @@
             state.classes.sort((a,b) => { const pA = parseInt(a.name) || 999; const pB = parseInt(b.name) || 999; return (a.tier||'') === (b.tier||'') ? pA - pB : ((a.tier||'') === 'junior' ? -1 : 1); });
             Object.keys(state.blueprints).forEach(tier => { if(Array.isArray(state.blueprints[tier])) { state.blueprints[tier].sort((a, b) => (a.s||0) - (b.s||0)); } });
             
+            // RESOLUTION: Dynamic Grid Alignment Engine
+            // Pre-calculate the exact width required for every period block to prevent extreme squeeze
+            Object.keys(state.blueprints).forEach(tier => {
+                if(Array.isArray(state.blueprints[tier])) {
+                    state.blueprints[tier].forEach(p => {
+                        let baseW = minToPx((p.e||0) - (p.s||0));
+                        let maxSplits = 1;
+                        state.classes.forEach(cls => {
+                            if (cls.tier === tier) {
+                                let splits = state.rules.filter(r => r.class === cls.name && r.periodId === p.id);
+                                if (splits.length > maxSplits) maxSplits = splits.length;
+                            }
+                        });
+                        // Minimum 40px per vertical split column, plus 24px for the parent padding and split-add (+) button
+                        p._renderWidth = Math.max(baseW, (maxSplits * 40) + 24); 
+                    });
+                }
+            });
+
             const audit = auditClashes(); currentClashMap = audit.map; 
             const banner = document.getElementById('clashBanner');
             if(audit.count > 0) { banner.style.display = 'block'; banner.innerHTML = `⚠️ ${audit.count} Schedule Conflicts Detected. Hover over orange Day Pills for details.`; } else { banner.style.display = 'none'; }
@@ -505,7 +522,7 @@
             row.innerHTML = `<div class="label-box bg-slate-900 border-r-4 border-black text-[10px] text-white flex justify-between px-3 box-border" style="width: var(--label-width)"><span>${(tier||'').toUpperCase()} TIER</span><button onclick="openClsModal(null, '${tier}')" class="text-white hover:text-indigo-300 font-black text-lg leading-none" title="Add Class to Tier">+</button></div>`;
             if(state.blueprints && Array.isArray(state.blueprints[tier])) {
                 state.blueprints[tier].forEach(p => {
-                    const div = document.createElement('div'); div.className = 'p-block'; div.style.width = minToPx((p.e||0) - (p.s||0)) + 'px';
+                    const div = document.createElement('div'); div.className = 'p-block'; div.style.width = (p._renderWidth || minToPx((p.e||0) - (p.s||0))) + 'px';
                     div.innerHTML = `${sanitize(p.n)} <span>${formatTime(p.s||0)}-${formatTime(p.e||0)}</span><div class="hover-actions bg-black/60 p-1 rounded backdrop-blur"><i class="icon-btn text-white" onclick="openPerModal('${p.id}', '${tier}')">✎</i><i class="icon-btn text-red-400" onclick="deletePeriod('${p.id}', '${tier}')">🗑</i></div>`;
                     row.appendChild(div);
                 });
@@ -519,9 +536,9 @@
             row.innerHTML = `<div class="label-box relative" data-class-name="${safeClassName}">${safeClassName}<div class="hover-actions"><i class="icon-btn text-indigo-600" onclick="openClsModal('${safeClassName}', '${cls.tier}')">✎</i><i class="icon-btn text-rose-600" onclick="deleteClass('${safeClassName}')">🗑</i></div></div>`;
             if(state.blueprints && Array.isArray(state.blueprints[cls.tier])) {
                 state.blueprints[cls.tier].forEach(p => {
-                    const cell = document.createElement('div'); const width = minToPx((p.e||0) - (p.s||0)) + 'px';
-                    if (p.r) { cell.className = 'recess-block'; cell.innerText = 'RECESS'; cell.style.width = width; } else {
-                        cell.className = 'time-slot'; cell.style.width = width; cell.ondragover = e => e.preventDefault(); cell.ondrop = e => handleGenericDrop(e, cls.name, p.id);
+                    const cell = document.createElement('div'); const calcWidth = (p._renderWidth || minToPx((p.e||0) - (p.s||0))) + 'px';
+                    if (p.r) { cell.className = 'recess-block'; cell.innerText = 'RECESS'; cell.style.width = calcWidth; } else {
+                        cell.className = 'time-slot'; cell.style.width = calcWidth; cell.ondragover = e => e.preventDefault(); cell.ondrop = e => handleGenericDrop(e, cls.name, p.id);
                         
                         const slotsForThisPeriod = state.rules ? state.rules.filter(r => r && r.class === cls.name && r.periodId === p.id) : [];
                         if (slotsForThisPeriod.length === 0) {
@@ -535,7 +552,7 @@
                                 const subEvents = rule.sub ? `onmouseover="showNameTooltip(event, '${rule.sub}', 'sub')" onmouseleave="hideTooltip()"` : ''; const teaEvents = rule.tea ? `onmouseover="showNameTooltip(event, '${rule.tea}', 'tea')" onmouseleave="hideTooltip()"` : ''; const dayEvents = isClash ? `onmouseover="showClashTooltip(event, '${rule.id}')" onmouseleave="hideTooltip()"` : '';
                                 const col = document.createElement('div'); col.className = `vertical-col ${activeRuleId === rule.id ? 'active' : ''} ${clashClass}`;
                                 // RESOLUTION: Event Propagation Blocks to Stop Generic Drop Overwrites
-                                col.innerHTML = `<div class="drop-zone dz-sub ${rule.sub?'has-val':''}" onclick="clearValue(event, '${rule.id}', 'sub')" ondragover="e=>e.preventDefault()" ondrop="handleTargetedDrop(event, '${rule.id}', 'sub')" ${subEvents}>${rule.sub ? rule.sub : '<span class="placeholder-text">+ SUB</span>'}</div><div class="drop-zone dz-tea ${rule.tea?'has-val':''}" onclick="clearValue(event, '${rule.id}', 'tea')" ondragover="e=>e.preventDefault()" ondrop="handleTargetedDrop(event, '${rule.id}', 'tea')" ${teaEvents}>${rule.tea ? rule.tea : '<span class="placeholder-text">+ TEA</span>'}</div><div class="drop-zone dz-day ${(rule.days||[]).some(d=>d)?'has-val':''}" onclick="toggleStrip(event, '${rule.id}')" ${dayEvents}>(${getDayLabel(rule.days||[])})</div>`;
+                                col.innerHTML = `<div class="drop-zone dz-sub ${rule.sub?'has-val':''}" onclick="clearValue(event, '${rule.id}', 'sub')" ondragover="e.preventDefault();" ondrop="handleTargetedDrop(event, '${rule.id}', 'sub')" ${subEvents}>${rule.sub ? rule.sub : '<span class="placeholder-text">+ SUB</span>'}</div><div class="drop-zone dz-tea ${rule.tea?'has-val':''}" onclick="clearValue(event, '${rule.id}', 'tea')" ondragover="e.preventDefault();" ondrop="handleTargetedDrop(event, '${rule.id}', 'tea')" ${teaEvents}>${rule.tea ? rule.tea : '<span class="placeholder-text">+ TEA</span>'}</div><div class="drop-zone dz-day ${(rule.days||[]).some(d=>d)?'has-val':''}" onclick="toggleStrip(event, '${rule.id}')" ${dayEvents}>(${getDayLabel(rule.days||[])})</div>`;
                                 if(activeRuleId === rule.id) col.appendChild(createDayStrip(rule)); cell.appendChild(col);
                             });
                         }
