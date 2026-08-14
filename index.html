@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
-        :root { --sub-color: #2563eb; --tea-color: #059669; --grid-scale: 1; --label-width: 140px; --px-per-min: 4; }
+        :root { --sub-color: #2563eb; --tea-color: #059669; --grid-scale: 1; --label-width: 140px; --px-per-min: 7; }
         body { font-family: 'Inter Tight', sans-serif; -webkit-font-smoothing: antialiased; background: #f1f5f9; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         
         /* LAYOUT & SIDEBARS */
@@ -327,7 +327,7 @@
             return true;
         }
 
-        const minToPx = (m) => m * 4;
+        const minToPx = (m) => m * 7;
         const formatTime = (m) => { const h = Math.floor(m/60)%12||12, mins = m%60, p = m>=720?'PM':'AM'; return `${h}:${String(mins).padStart(2,'0')}${p}`; }
         const timeToMin = (t) => { if(!t) return 0; const [h,m] = t.split(':').map(Number); return h * 60 + m; }
         const minToTime = (m) => { const h = Math.floor(m/60), mins = m%60; return `${String(h).padStart(2,'0')}:${String(mins).padStart(2,'0')}`; }
